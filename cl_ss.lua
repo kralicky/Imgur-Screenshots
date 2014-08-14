@@ -1,4 +1,7 @@
 -- Create a Client-ID for your account: https://api.imgur.com/oauth2/addclient
+local _rendercap = render.Capture
+local _utilb64e = util.Base64Encode
+
 local CLIENT_ID = ""
 
 local capturing = false
@@ -43,10 +46,34 @@ function CaptureImage( startpos, endpos )
 	}
 	if capture.h <= 5 or capture.w <= 5 then
 		chat.AddText( Color( 255, 0, 0 ), "Upload failed - Image must be greater than 5x5 px" )
+		surface.PlaySound( "buttons/button11.wav" )
 		inprogress = false			
 		return
 	end
-	local data = util.Base64Encode( render.Capture( capture ) )
+	local data1 = render.Capture( capture )
+	if not data1 then
+		chat.AddText( Color( 255, 0, 0 ), "render.Capture has been overriden, attempting to bypass..."  )
+		data1 = _rendercap( capture )
+		if data1 then
+			chat.AddText( Color( 0, 255, 0 ), "render.Capture override has been bypassed." )
+		else
+			chat.AddText( Color( 255, 0, 0 ), "render.Capture override could not be bypassed." )
+			surface.PlaySound( "buttons/button11.wav" )
+			return
+		end
+	end
+	local data = util.Base64Encode( data1 )
+	if not data then
+		chat.AddText( Color( 255, 0, 0 ), "util.Base64Encode has been overriden, attempting to bypass..."  )
+		data = _utilb64e( data1 )
+		if data then
+			chat.AddText( Color( 0, 255, 0 ), "util.Base64Encode override has been bypassed." )
+		else
+			chat.AddText( Color( 255, 0, 0 ), "util.Base64Encode override could not be bypassed." )
+			surface.PlaySound( "buttons/button11.wav" )
+			return
+		end
+	end	
 	local params = {
 		[ "image" ] = data,
 		[ "type" ] = "base64"
@@ -59,10 +86,26 @@ function CaptureImage( startpos, endpos )
 		[ "success" ] =
 			function( status, response, headers )
 				local res = util.JSONToTable( response )
-				chat.AddText( Color( 0, 255, 0 ), "Upload success - URL Copied to clipboard" )
 				inprogress = false
-				SetClipboardText( res.data.link )
-				surface.PlaySound( "garrysmod/content_downloaded.wav" )
+				if status == 200 then
+					SetClipboardText( res.data.link )
+					surface.PlaySound( "garrysmod/content_downloaded.wav" )
+					chat.AddText( Color( 0, 255, 0 ), "Upload success - URL Copied to clipboard" )
+					return
+				elseif status == 400 then
+					chat.AddText( Color( 255, 0, 0 ), "Upload failed - Invalid parameters" )
+				elseif status == 401 then
+					chat.AddText( Color( 255, 0, 0 ), "Upload failed - Authentication required" )
+				elseif status == 403 then
+					chat.AddText( Color( 255, 0, 0 ), "Upload failed - Invalid Authentication" )
+				elseif status == 404 then
+					chat.AddText( Color( 255, 0, 0 ), "Upload failed - Resource does not exist" )
+				elseif status == 429 then
+					chat.AddText( Color( 255, 0, 0 ), "Upload failed - Application rate limit reached" )
+				elseif status == 500 then
+					chat.AddText( Color( 255, 0, 0 ), "Upload failed - Imgur.com is down" )
+				end
+				surface.PlaySound( "buttons/button11.wav" )
 			end,
 		[ "method" ] =
 			"post",
